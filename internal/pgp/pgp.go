@@ -58,6 +58,10 @@ func SaveKeyPair(key *openpgp.Key, privatePath, publicPath string, passphrase []
 }
 
 func LoadIdentity(privatePath, peerPath, passphrasePath string) (*Identity, error) {
+	peerKey, err := LoadPublicKey(peerPath)
+	if err != nil {
+		return nil, err
+	}
 	privateData, err := os.ReadFile(privatePath)
 	if err != nil {
 		return nil, fmt.Errorf("read private key %q: %w", privatePath, err)
@@ -72,21 +76,25 @@ func LoadIdentity(privatePath, peerPath, passphrasePath string) (*Identity, erro
 		passphrase = trimTrailingNewline(passphrase)
 	}
 
-	return loadIdentity(privatePath, privateData, peerPath, passphrase)
+	return loadIdentity(privateData, peerKey, passphrase)
 }
 
 // LoadIdentityWithPassphrase loads an identity using an in-memory passphrase.
 // A nil passphrase is accepted for an unprotected private key, but returns
 // ErrPassphraseRequired for a protected key.
 func LoadIdentityWithPassphrase(privatePath, peerPath string, passphrase []byte) (*Identity, error) {
+	peerKey, err := LoadPublicKey(peerPath)
+	if err != nil {
+		return nil, err
+	}
 	privateData, err := os.ReadFile(privatePath)
 	if err != nil {
 		return nil, fmt.Errorf("read private key %q: %w", privatePath, err)
 	}
-	return loadIdentity(privatePath, privateData, peerPath, passphrase)
+	return loadIdentity(privateData, peerKey, passphrase)
 }
 
-func loadIdentity(privatePath string, privateData []byte, peerPath string, passphrase []byte) (*Identity, error) {
+func loadIdentity(privateData []byte, peerKey *openpgp.Key, passphrase []byte) (*Identity, error) {
 	privateKey, err := openpgp.NewKey(privateData)
 	if err != nil {
 		return nil, fmt.Errorf("parse private key: %w", err)
@@ -109,10 +117,6 @@ func loadIdentity(privatePath string, privateData []byte, peerPath string, passp
 	}
 
 	publicKey, err := publicOnly(privateKey)
-	if err != nil {
-		return nil, err
-	}
-	peerKey, err := LoadPublicKey(peerPath)
 	if err != nil {
 		return nil, err
 	}

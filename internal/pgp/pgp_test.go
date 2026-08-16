@@ -4,10 +4,28 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	openpgp "github.com/ProtonMail/gopenpgp/v3/crypto"
 )
+
+func TestLoadIdentityChecksPeerBeforePassphrase(t *testing.T) {
+	dir := t.TempDir()
+	key, err := GenerateKey("alice", "alice@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	privatePath := filepath.Join(dir, "alice.private.asc")
+	if err := SaveKeyPair(key, privatePath, filepath.Join(dir, "alice.public.asc"), []byte("secret")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = LoadIdentity(privatePath, filepath.Join(dir, "missing-peer.asc"), "")
+	if err == nil || !strings.Contains(err.Error(), "read peer public key") {
+		t.Fatalf("expected missing peer public key error, got %v", err)
+	}
+}
 
 func TestGenerateKeyWithoutEmail(t *testing.T) {
 	key, err := GenerateKey("anonymous", "")
