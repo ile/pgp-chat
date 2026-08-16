@@ -5,7 +5,30 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	openpgp "github.com/ProtonMail/gopenpgp/v3/crypto"
 )
+
+func TestGenerateKeyWithoutEmail(t *testing.T) {
+	key, err := GenerateKey("anonymous", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyRing, err := openpgp.NewKeyRing(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identities := keyRing.GetIdentities()
+	if len(identities) != 1 {
+		t.Fatalf("expected one identity, got %d", len(identities))
+	}
+	if identities[0].Name != "anonymous" {
+		t.Fatalf("unexpected identity name: %q", identities[0].Name)
+	}
+	if identities[0].Email != "" {
+		t.Fatalf("expected no email, got %q", identities[0].Email)
+	}
+}
 
 func TestProtectedKeyRequiresPassphrase(t *testing.T) {
 	dir := t.TempDir()

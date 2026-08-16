@@ -65,7 +65,8 @@ for platform-specific setup.
 
 ## Create keys
 
-Create one key pair per user. A passphrase file is optional, but recommended:
+Create one key pair per user. The name is required, but the email is optional.
+A passphrase file is optional, but recommended:
 
 ```bash
 ./pgp-chat keygen --name Alice --email alice@example.com \
@@ -86,6 +87,9 @@ For a graphical key-generation form, use:
 The form lets you enter the identity details, output paths, and an optional
 passphrase with confirmation. Existing files are protected by default; enable
 the overwrite checkbox only when replacement is intentional.
+
+Leaving the email empty creates a user ID containing only the chosen name. A
+pseudonym can be used if the key should not reveal an email address.
 
 If a private key is protected and `--passphrase-file` is omitted, the TUI asks
 for the passphrase in the terminal and the GUI shows a password dialog. The

@@ -122,7 +122,7 @@ func RunKeygenForm(defaults KeygenOptions, generate func(KeygenOptions) (string,
 
 	entryForm := widget.NewForm(
 		widget.NewFormItem("Name", name),
-		widget.NewFormItem("Email", email),
+		widget.NewFormItem("Email (optional)", email),
 		widget.NewFormItem("Private key", privatePath),
 		widget.NewFormItem("Public key", publicPath),
 		widget.NewFormItem("Passphrase", passphrase),
@@ -161,8 +161,8 @@ func RunKeygenForm(defaults KeygenOptions, generate func(KeygenOptions) (string,
 }
 
 func validateKeygenOptions(options KeygenOptions, confirmation []byte) error {
-	if strings.TrimSpace(options.Name) == "" || strings.TrimSpace(options.Email) == "" {
-		return fmt.Errorf("name and email are required")
+	if strings.TrimSpace(options.Name) == "" {
+		return fmt.Errorf("name is required")
 	}
 	if options.PrivatePath == "" || options.PublicPath == "" {
 		return fmt.Errorf("private and public key paths are required")

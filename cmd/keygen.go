@@ -26,8 +26,8 @@ var keygenCmd = &cobra.Command{
 		if keygenGUI {
 			return runGUIKeygen(cmd)
 		}
-		if keygenName == "" || keygenEmail == "" {
-			return fmt.Errorf("both --name and --email are required")
+		if keygenName == "" {
+			return fmt.Errorf("--name is required")
 		}
 		var passphrase []byte
 		var err error
@@ -56,7 +56,7 @@ var keygenCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(keygenCmd)
 	keygenCmd.Flags().StringVar(&keygenName, "name", "", "identity name")
-	keygenCmd.Flags().StringVar(&keygenEmail, "email", "", "identity email")
+	keygenCmd.Flags().StringVar(&keygenEmail, "email", "", "optional identity email")
 	keygenCmd.Flags().StringVar(&keygenPrivatePath, "private-key", "private.asc", "private key output path")
 	keygenCmd.Flags().StringVar(&keygenPublicPath, "public-key", "public.asc", "public key output path")
 	keygenCmd.Flags().StringVar(&keygenPassphrase, "passphrase-file", "", "file containing the private-key passphrase")
@@ -106,8 +106,8 @@ func runGUIKeygen(cmd *cobra.Command) error {
 }
 
 func generateAndSaveKey(name, email, privatePath, publicPath string, passphrase []byte, force bool) (string, error) {
-	if name == "" || email == "" {
-		return "", fmt.Errorf("both name and email are required")
+	if name == "" {
+		return "", fmt.Errorf("name is required")
 	}
 	if privatePath == "" || publicPath == "" {
 		return "", fmt.Errorf("both private and public key paths are required")
