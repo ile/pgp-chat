@@ -1,10 +1,29 @@
 package pgp
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestProtectedKeyRequiresPassphrase(t *testing.T) {
+	dir := t.TempDir()
+	key, err := GenerateKey("alice", "alice@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	privatePath := filepath.Join(dir, "alice.private.asc")
+	peerPath := filepath.Join(dir, "peer.public.asc")
+	if err := SaveKeyPair(key, privatePath, peerPath, []byte("secret")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = LoadIdentity(privatePath, peerPath, "")
+	if !errors.Is(err, ErrPassphraseRequired) {
+		t.Fatalf("expected ErrPassphraseRequired, got %v", err)
+	}
+}
 
 func TestProtectedKeyPairRoundTrip(t *testing.T) {
 	dir := t.TempDir()

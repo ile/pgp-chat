@@ -23,6 +23,79 @@ const (
 	disconnect = "Peer disconnected"
 )
 
+// PromptPassphrase opens a password-protected dialog and keeps asking until
+// validate accepts the entered passphrase or the user closes the dialog.
+func PromptPassphrase(validate func([]byte) error) error {
+	if validate == nil {
+		return fmt.Errorf("passphrase validator is required")
+	}
+
+	application := app.NewWithID(appID + ".unlock")
+	application.Settings().SetTheme(theme.DarkTheme())
+	window := application.NewWindow("Unlock private key")
+
+	entry := widget.NewPasswordEntry()
+	entry.SetPlaceHolder("Private key passphrase")
+	message := widget.NewLabel("Enter the passphrase for your private OpenPGP key.")
+	message.Wrapping = fyne.TextWrapWord
+	errorLabel := widget.NewLabel("")
+	errorLabel.Wrapping = fyne.TextWrapWord
+
+	result := make(chan error, 1)
+	closed := false
+	finish := func(err error) {
+		if closed {
+			return
+		}
+		closed = true
+		result <- err
+		application.Quit()
+	}
+
+	submit := func() {
+		passphrase := []byte(entry.Text)
+		err := validate(passphrase)
+		clearBytes(passphrase)
+		entry.SetText("")
+		if err != nil {
+			errorLabel.SetText("Unlock failed: " + err.Error())
+			window.Canvas().Focus(entry)
+			return
+		}
+		finish(nil)
+	}
+	entry.OnSubmitted = func(string) { submit() }
+	unlock := widget.NewButton("Unlock", submit)
+	unlock.Importance = widget.HighImportance
+	cancel := widget.NewButton("Cancel", func() { finish(fmt.Errorf("passphrase prompt cancelled")) })
+
+	window.SetContent(container.NewPadded(container.NewVBox(
+		widget.NewLabelWithStyle("Unlock private key", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		message,
+		entry,
+		container.NewHBox(layout.NewSpacer(), cancel, unlock),
+		errorLabel,
+	)))
+	window.Resize(fyne.NewSize(480, 220))
+	window.SetOnClosed(func() {
+		if !closed {
+			closed = true
+			result <- fmt.Errorf("passphrase prompt cancelled")
+		}
+		application.Quit()
+	})
+	window.Show()
+	window.Canvas().Focus(entry)
+	application.Run()
+	return <-result
+}
+
+func clearBytes(data []byte) {
+	for i := range data {
+		data[i] = 0
+	}
+}
+
 // Run opens the Fyne chat window for an already established chat session.
 // The PGP and libp2p layers stay outside the GUI package.
 func Run(session *chat.Session) error {

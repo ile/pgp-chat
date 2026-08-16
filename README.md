@@ -77,6 +77,12 @@ Create one key pair per user. A passphrase file is optional, but recommended:
   --passphrase-file bob.pass
 ```
 
+If a private key is protected and `--passphrase-file` is omitted, the TUI asks
+for the passphrase in the terminal and the GUI shows a password dialog. The
+passphrase is only used to unlock the private key in memory; it is not sent to
+the peer. A passphrase file should be readable only by its owner (`chmod 600`)
+and must not be committed to the repository.
+
 Exchange the public keys securely. Alice needs Bob's public key as
 `alice-peer.asc`, and Bob needs Alice's public key as `bob-peer.asc`.
 

@@ -8,6 +8,10 @@ import (
 	openpgp "github.com/ProtonMail/gopenpgp/v3/crypto"
 )
 
+// ErrPassphraseRequired indicates that the private key is protected and needs
+// a passphrase before it can be used.
+var ErrPassphraseRequired = errors.New("private key is locked; passphrase required")
+
 // Identity contains the local private key and the peer's public key.
 // Private key material must stay on the local machine.
 type Identity struct {
@@ -58,6 +62,31 @@ func LoadIdentity(privatePath, peerPath, passphrasePath string) (*Identity, erro
 	if err != nil {
 		return nil, fmt.Errorf("read private key %q: %w", privatePath, err)
 	}
+
+	var passphrase []byte
+	if passphrasePath != "" {
+		passphrase, err = os.ReadFile(passphrasePath)
+		if err != nil {
+			return nil, fmt.Errorf("read passphrase file: %w", err)
+		}
+		passphrase = trimTrailingNewline(passphrase)
+	}
+
+	return loadIdentity(privatePath, privateData, peerPath, passphrase)
+}
+
+// LoadIdentityWithPassphrase loads an identity using an in-memory passphrase.
+// A nil passphrase is accepted for an unprotected private key, but returns
+// ErrPassphraseRequired for a protected key.
+func LoadIdentityWithPassphrase(privatePath, peerPath string, passphrase []byte) (*Identity, error) {
+	privateData, err := os.ReadFile(privatePath)
+	if err != nil {
+		return nil, fmt.Errorf("read private key %q: %w", privatePath, err)
+	}
+	return loadIdentity(privatePath, privateData, peerPath, passphrase)
+}
+
+func loadIdentity(privatePath string, privateData []byte, peerPath string, passphrase []byte) (*Identity, error) {
 	privateKey, err := openpgp.NewKey(privateData)
 	if err != nil {
 		return nil, fmt.Errorf("parse private key: %w", err)
@@ -70,12 +99,8 @@ func LoadIdentity(privatePath, peerPath, passphrasePath string) (*Identity, erro
 		return nil, fmt.Errorf("inspect private key: %w", err)
 	}
 	if locked {
-		if passphrasePath == "" {
-			return nil, errors.New("private key is locked; provide --passphrase-file")
-		}
-		passphrase, err := os.ReadFile(passphrasePath)
-		if err != nil {
-			return nil, fmt.Errorf("read passphrase file: %w", err)
+		if passphrase == nil {
+			return nil, ErrPassphraseRequired
 		}
 		privateKey, err = privateKey.Unlock(trimTrailingNewline(passphrase))
 		if err != nil {
