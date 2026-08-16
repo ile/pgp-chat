@@ -20,10 +20,9 @@ go build -o pgp-chat .
 
 ### Ubuntu/Debian
 
-Asenna Go 1.23 tai uudempi. Jakelun `golang`-paketti voi olla liian vanha,
-jolloin käytä Go:n virallista asennuspakettia osoitteesta
-<https://go.dev/dl/>. Fyne tarvitsee Linuxilla lisäksi C-kääntäjän ja
-grafiikkakirjastojen kehitystiedostot:
+Install Go 1.23 or newer. The distribution's `golang` package may be too old;
+if so, use the official Go download from <https://go.dev/dl/>. On Linux, Fyne
+also requires a C compiler and graphics library development headers:
 
 ```bash
 sudo apt update
@@ -35,14 +34,14 @@ go build -o pgp-chat .
 
 ### macOS
 
-Asenna ensin Xcode Command Line Tools ja Go. Koko Xcodea ei yleensä tarvita
-pelkkään buildiin:
+First install the Xcode Command Line Tools and Go. The full Xcode application
+is usually not needed just to build the project:
 
 ```bash
 xcode-select --install
 ```
 
-Go:n voi asentaa esimerkiksi osoitteesta <https://go.dev/dl/> tai Homebrewlla:
+You can install Go from <https://go.dev/dl/> or with Homebrew:
 
 ```bash
 brew install go
