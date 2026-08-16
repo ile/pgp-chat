@@ -141,3 +141,11 @@ fabric.properties
 # End of https://www.toptal.com/developers/gitignore/api/goland,go
 
 *.log
+
+# Local private chat material
+node.key
+*.node.key
+private.asc
+*.private.asc
+*-private.asc
+*.pass

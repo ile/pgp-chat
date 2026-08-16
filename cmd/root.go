@@ -23,7 +23,6 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/elewis787/boa"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -67,8 +66,6 @@ func init() {
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
-	rootCmd.SetUsageFunc(boa.UsageFunc)
-	rootCmd.SetHelpFunc(boa.HelpFunc)
 }
 
 // initConfig reads in config file and ENV variables if set.
