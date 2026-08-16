@@ -18,6 +18,38 @@ Requires Go 1.23 or newer.
 go build -o pgp-chat .
 ```
 
+### Ubuntu/Debian
+
+Asenna Go 1.23 tai uudempi. Jakelun `golang`-paketti voi olla liian vanha,
+jolloin käytä Go:n virallista asennuspakettia osoitteesta
+<https://go.dev/dl/>. Fyne tarvitsee Linuxilla lisäksi C-kääntäjän ja
+grafiikkakirjastojen kehitystiedostot:
+
+```bash
+sudo apt update
+sudo apt install gcc pkg-config libgl1-mesa-dev xorg-dev \
+  libwayland-dev libxkbcommon-dev
+go version
+go build -o pgp-chat .
+```
+
+### macOS
+
+Asenna ensin Xcode Command Line Tools ja Go. Koko Xcodea ei yleensä tarvita
+pelkkään buildiin:
+
+```bash
+xcode-select --install
+```
+
+Go:n voi asentaa esimerkiksi osoitteesta <https://go.dev/dl/> tai Homebrewlla:
+
+```bash
+brew install go
+go version
+go build -o pgp-chat .
+```
+
 The graphical version is selected with `--gui` on either chat command:
 
 ```bash
