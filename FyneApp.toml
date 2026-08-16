@@ -1,0 +1,8 @@
+[Details]
+Name = "PGP Chat"
+ID = "io.github.ile.pgpchat"
+Version = "0.1.0"
+Build = 1
+
+[Migrations]
+fyneDo = true
