@@ -1,7 +1,9 @@
 package gui
 
 import (
+	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +24,166 @@ const (
 	connected  = "Connected • PGP + Noise"
 	disconnect = "Peer disconnected"
 )
+
+// KeygenOptions contains the values entered in the graphical key generation
+// form. Passphrase is only populated while the submit callback is running.
+type KeygenOptions struct {
+	Name        string
+	Email       string
+	PrivatePath string
+	PublicPath  string
+	Passphrase  []byte
+	Force       bool
+}
+
+// RunKeygenForm opens the graphical key generation form. The callback owns
+// the actual key generation and saving so that validation errors can be shown
+// in the form and retried without leaving the GUI. Its returned text is shown
+// in the GUI after a successful generation.
+func RunKeygenForm(defaults KeygenOptions, generate func(KeygenOptions) (string, error)) (string, error) {
+	if generate == nil {
+		return "", fmt.Errorf("key generation callback is required")
+	}
+
+	application := app.NewWithID(appID + ".keygen")
+	application.Settings().SetTheme(theme.DarkTheme())
+	window := application.NewWindow("Generate OpenPGP keys")
+
+	name := widget.NewEntry()
+	name.SetText(defaults.Name)
+	name.SetPlaceHolder("Alice")
+	email := widget.NewEntry()
+	email.SetText(defaults.Email)
+	email.SetPlaceHolder("alice@example.com")
+	privatePath := widget.NewEntry()
+	privatePath.SetText(defaults.PrivatePath)
+	publicPath := widget.NewEntry()
+	publicPath.SetText(defaults.PublicPath)
+	passphrase := widget.NewPasswordEntry()
+	passphrase.SetPlaceHolder("Optional, but recommended")
+	confirm := widget.NewPasswordEntry()
+	confirm.SetPlaceHolder("Repeat passphrase")
+	force := widget.NewCheck("Allow overwriting existing files", nil)
+	force.SetChecked(defaults.Force)
+	errorLabel := widget.NewLabel("")
+	errorLabel.Wrapping = fyne.TextWrapWord
+
+	type formResult struct {
+		message string
+		err     error
+	}
+	result := make(chan formResult, 1)
+	closed := false
+	generated := false
+	generatedMessage := ""
+	finish := func(message string, err error) {
+		if closed {
+			return
+		}
+		closed = true
+		result <- formResult{message: message, err: err}
+		application.Quit()
+	}
+
+	var generateButton *widget.Button
+	submit := func() {
+		enteredPassphrase := []byte(passphrase.Text)
+		enteredConfirmation := []byte(confirm.Text)
+		passphrase.SetText("")
+		confirm.SetText("")
+
+		options := KeygenOptions{
+			Name:        name.Text,
+			Email:       email.Text,
+			PrivatePath: privatePath.Text,
+			PublicPath:  publicPath.Text,
+			Passphrase:  enteredPassphrase,
+			Force:       force.Checked,
+		}
+		if err := validateKeygenOptions(options, enteredConfirmation); err != nil {
+			clearBytes(enteredPassphrase)
+			clearBytes(enteredConfirmation)
+			errorLabel.SetText(err.Error())
+			return
+		}
+		message, err := generate(options)
+		clearBytes(enteredPassphrase)
+		clearBytes(enteredConfirmation)
+		if err != nil {
+			errorLabel.SetText(err.Error())
+			return
+		}
+		generated = true
+		generatedMessage = message
+		errorLabel.SetText("Keys generated successfully.\n" + message)
+		generateButton.SetText("Done")
+		generateButton.OnTapped = func() { finish(generatedMessage, nil) }
+	}
+
+	entryForm := widget.NewForm(
+		widget.NewFormItem("Name", name),
+		widget.NewFormItem("Email", email),
+		widget.NewFormItem("Private key", privatePath),
+		widget.NewFormItem("Public key", publicPath),
+		widget.NewFormItem("Passphrase", passphrase),
+		widget.NewFormItem("Confirm", confirm),
+	)
+	generateButton = widget.NewButton("Generate keys", submit)
+	generateButton.Importance = widget.HighImportance
+	cancelButton := widget.NewButton("Cancel", func() { finish("", fmt.Errorf("key generation cancelled")) })
+	confirm.OnSubmitted = func(string) { submit() }
+
+	window.SetContent(container.NewPadded(container.NewVBox(
+		widget.NewLabelWithStyle("Generate OpenPGP key pair", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabel("The private key is saved encrypted when a passphrase is provided."),
+		entryForm,
+		force,
+		errorLabel,
+		container.NewHBox(layout.NewSpacer(), cancelButton, generateButton),
+	)))
+	window.Resize(fyne.NewSize(620, 480))
+	window.SetOnClosed(func() {
+		if !closed {
+			closed = true
+			if generated {
+				result <- formResult{message: generatedMessage}
+			} else {
+				result <- formResult{err: fmt.Errorf("key generation cancelled")}
+			}
+		}
+		application.Quit()
+	})
+	window.Show()
+	window.Canvas().Focus(name)
+	application.Run()
+	finalResult := <-result
+	return finalResult.message, finalResult.err
+}
+
+func validateKeygenOptions(options KeygenOptions, confirmation []byte) error {
+	if strings.TrimSpace(options.Name) == "" || strings.TrimSpace(options.Email) == "" {
+		return fmt.Errorf("name and email are required")
+	}
+	if options.PrivatePath == "" || options.PublicPath == "" {
+		return fmt.Errorf("private and public key paths are required")
+	}
+	if options.PrivatePath == options.PublicPath {
+		return fmt.Errorf("private and public key paths must be different")
+	}
+	if !bytes.Equal(options.Passphrase, confirmation) {
+		return fmt.Errorf("passphrases do not match")
+	}
+	if !options.Force {
+		for _, path := range []string{options.PrivatePath, options.PublicPath} {
+			if _, err := os.Stat(path); err == nil {
+				return fmt.Errorf("refusing to overwrite %q; enable overwrite or choose another path", path)
+			} else if !os.IsNotExist(err) {
+				return fmt.Errorf("check key path %q: %w", path, err)
+			}
+		}
+	}
+	return nil
+}
 
 // PromptPassphrase opens a password-protected dialog and keeps asking until
 // validate accepts the entered passphrase or the user closes the dialog.

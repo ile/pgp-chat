@@ -77,6 +77,16 @@ Create one key pair per user. A passphrase file is optional, but recommended:
   --passphrase-file bob.pass
 ```
 
+For a graphical key-generation form, use:
+
+```bash
+./pgp-chat keygen --gui
+```
+
+The form lets you enter the identity details, output paths, and an optional
+passphrase with confirmation. Existing files are protected by default; enable
+the overwrite checkbox only when replacement is intentional.
+
 If a private key is protected and `--passphrase-file` is omitted, the TUI asks
 for the passphrase in the terminal and the GUI shows a password dialog. The
 passphrase is only used to unlock the private key in memory; it is not sent to
