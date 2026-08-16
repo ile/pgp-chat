@@ -9,6 +9,7 @@ import (
 	"github.com/nigel-dev/pgp-chat/internal/p2p"
 	"github.com/nigel-dev/pgp-chat/internal/pgp"
 	"github.com/nigel-dev/pgp-chat/internal/ui/client"
+	chatgui "github.com/nigel-dev/pgp-chat/internal/ui/gui"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +20,7 @@ type chatFlags struct {
 	peerKey    string
 	passphrase string
 	relays     []string
+	gui        bool
 }
 
 var listenFlags = chatFlags{
@@ -66,7 +68,7 @@ var listenCmd = &cobra.Command{
 		}
 		defer conn.Close()
 		fmt.Fprintf(cmd.OutOrStdout(), "connected to libp2p peer %s\n", conn.RemotePeer())
-		return runTUI(chat.NewSession(conn, identity), debugEnabled)
+		return runSession(chat.NewSession(conn, identity), listenFlags.gui)
 	},
 }
 
@@ -98,7 +100,7 @@ var connectCmd = &cobra.Command{
 		}
 		defer conn.Close()
 		fmt.Fprintf(cmd.OutOrStdout(), "connected to libp2p peer %s\n", remotePeer)
-		return runTUI(chat.NewSession(conn, identity), debugEnabled)
+		return runSession(chat.NewSession(conn, identity), connectFlags.gui)
 	},
 }
 
@@ -117,6 +119,7 @@ func addChatFlags(cmd *cobra.Command, flags *chatFlags) {
 	cmd.Flags().StringVar(&flags.peerKey, "peer-key", flags.peerKey, "peer OpenPGP public key")
 	cmd.Flags().StringVar(&flags.passphrase, "passphrase-file", flags.passphrase, "file containing the local key passphrase")
 	cmd.Flags().StringSliceVar(&flags.relays, "relay", flags.relays, "static libp2p relay multiaddress; repeat as needed")
+	cmd.Flags().BoolVar(&flags.gui, "gui", false, "use the Fyne GUI instead of the terminal UI")
 }
 
 func printNodeInfo(cmd *cobra.Command, node *p2p.Node, identity *pgp.Identity) {
@@ -144,4 +147,11 @@ func runTUI(session *chat.Session, debug bool) error {
 		return fmt.Errorf("run TUI: %w", err)
 	}
 	return nil
+}
+
+func runSession(session *chat.Session, useGUI bool) error {
+	if useGUI {
+		return chatgui.Run(session)
+	}
+	return runTUI(session, debugEnabled)
 }

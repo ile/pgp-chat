@@ -18,6 +18,20 @@ Requires Go 1.23 or newer.
 go build -o pgp-chat .
 ```
 
+The graphical version is selected with `--gui` on either chat command:
+
+```bash
+./pgp-chat listen --gui --listen /ip4/0.0.0.0/tcp/4001 ...
+./pgp-chat connect --gui --peer /ip4/PEER_IP/tcp/4001/p2p/PEER_ID ...
+```
+
+The GUI is built with Fyne and uses a dark, split-pane layout: conversation on
+the left, security/peer details on the right, and the message composer at the
+bottom. Linux development requires the Fyne graphics development packages
+(Wayland/X11/OpenGL headers and a C compiler); macOS development requires the
+Xcode command-line tools. See the [Fyne quick start](https://docs.fyne.io/started/quick/)
+for platform-specific setup.
+
 ## Create keys
 
 Create one key pair per user. A passphrase file is optional, but recommended:

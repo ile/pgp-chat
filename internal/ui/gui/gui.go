@@ -1,0 +1,230 @@
+package gui
+
+import (
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
+	"github.com/nigel-dev/pgp-chat/internal/chat"
+)
+
+const (
+	appID      = "io.github.ile.pgpchat"
+	windowW    = 1120
+	windowH    = 720
+	connected  = "Connected • PGP + Noise"
+	disconnect = "Peer disconnected"
+)
+
+// Run opens the Fyne chat window for an already established chat session.
+// The PGP and libp2p layers stay outside the GUI package.
+func Run(session *chat.Session) error {
+	if session == nil {
+		return fmt.Errorf("cannot start GUI without a chat session")
+	}
+
+	application := app.NewWithID(appID)
+	application.Settings().SetTheme(theme.DarkTheme())
+	window := application.NewWindow("PGP Chat")
+	model := newModel(session)
+	window.SetContent(model.content())
+	window.Resize(fyne.NewSize(windowW, windowH))
+	window.SetOnClosed(model.close)
+	window.Show()
+
+	go model.receiveEvents()
+	application.Run()
+	return nil
+}
+
+type model struct {
+	session *chat.Session
+
+	messageList *fyne.Container
+	scroll      *container.Scroll
+	placeholder fyne.CanvasObject
+	input       *widget.Entry
+	send        *widget.Button
+	status      *widget.Label
+
+	sending  bool
+	closed   chan struct{}
+	closeOne sync.Once
+}
+
+func newModel(session *chat.Session) *model {
+	messageList := container.NewVBox()
+	placeholder := widget.NewLabel("No messages yet. Start the conversation below.")
+	placeholder.Wrapping = fyne.TextWrapWord
+	messageList.Add(placeholder)
+
+	input := widget.NewMultiLineEntry()
+	input.SetMinRowsVisible(3)
+	input.PlaceHolder = "Write an encrypted message..."
+
+	status := widget.NewLabel(connected)
+	status.TextStyle = fyne.TextStyle{Bold: true}
+
+	model := &model{
+		session:     session,
+		messageList: messageList,
+		placeholder: placeholder,
+		scroll:      container.NewVScroll(messageList),
+		input:       input,
+		status:      status,
+		closed:      make(chan struct{}),
+	}
+	model.send = widget.NewButton("Send", model.submit)
+	model.send.Importance = widget.HighImportance
+	input.OnSubmitted = func(text string) { model.submitText(text) }
+	return model
+}
+
+func (m *model) content() fyne.CanvasObject {
+	brand := widget.NewLabel("PGP CHAT")
+	brand.TextStyle = fyne.TextStyle{Bold: true}
+	header := container.NewBorder(nil, widget.NewSeparator(), brand, m.status, nil)
+
+	composer := container.NewVBox(
+		widget.NewSeparator(),
+		container.NewBorder(nil, nil, nil, m.send, m.input),
+	)
+	chatPane := container.NewBorder(header, composer, nil, nil, m.scroll)
+
+	securityPane := container.NewVBox(
+		sectionTitle("SECURITY"),
+		widget.NewSeparator(),
+		labelTitle("OpenPGP peer fingerprint"),
+		wrappedLabel(m.session.PeerFingerprint()),
+		widget.NewSeparator(),
+		labelTitle("Transport"),
+		widget.NewLabel("libp2p / Noise"),
+		widget.NewSeparator(),
+		labelTitle("Remote PeerID"),
+		wrappedLabel(m.session.RemotePeer()),
+		layout.NewSpacer(),
+		widget.NewLabel("Messages are signed and encrypted before sending."),
+	)
+	securityPane = container.NewPadded(securityPane)
+
+	conversation := container.NewHSplit(chatPane, securityPane)
+	conversation.SetOffset(0.77)
+
+	sidebar := container.NewVBox(
+		sectionTitle("PGP CHAT"),
+		widget.NewSeparator(),
+		widget.NewLabel("Conversation"),
+		widget.NewLabel(m.session.RemotePeer()),
+		layout.NewSpacer(),
+		widget.NewSeparator(),
+		widget.NewLabel("Secure session"),
+		widget.NewLabel("Noise transport active"),
+	)
+	sidebar = container.NewPadded(sidebar)
+
+	main := container.NewHSplit(sidebar, conversation)
+	main.SetOffset(0.22)
+	return main
+}
+
+func (m *model) receiveEvents() {
+	for event := range m.session.Events() {
+		event := event
+		select {
+		case <-m.closed:
+			return
+		default:
+		}
+		fyne.Do(func() {
+			select {
+			case <-m.closed:
+				return
+			default:
+			}
+			if event.Err != nil {
+				m.status.SetText(disconnect)
+				m.send.Disable()
+				return
+			}
+			m.addMessage("Peer", event.Message.Body, event.Message.SentAt)
+			m.status.SetText(connected)
+		})
+	}
+}
+
+func (m *model) submit() {
+	m.submitText(m.input.Text)
+}
+
+func (m *model) submitText(text string) {
+	if m.sending || strings.TrimSpace(text) == "" {
+		return
+	}
+	m.sending = true
+	m.send.Disable()
+	m.status.SetText("Encrypting and sending...")
+	m.input.SetText("")
+
+	go func(body string) {
+		err := m.session.Send(body)
+		fyne.Do(func() {
+			defer func() {
+				m.sending = false
+				m.send.Enable()
+			}()
+			if err != nil {
+				m.status.SetText("Send failed: " + err.Error())
+				m.input.SetText(body)
+				return
+			}
+			m.addMessage("You", body, time.Now())
+			m.status.SetText(connected)
+		})
+	}(text)
+}
+
+func (m *model) addMessage(sender, body string, sentAt time.Time) {
+	if m.placeholder != nil {
+		m.messageList.Remove(m.placeholder)
+		m.placeholder = nil
+	}
+
+	message := widget.NewLabel(body)
+	message.Wrapping = fyne.TextWrapWord
+	card := widget.NewCard(sender, sentAt.Local().Format("15:04"), message)
+	m.messageList.Add(card)
+	m.messageList.Refresh()
+	m.scroll.ScrollToBottom()
+}
+
+func (m *model) close() {
+	m.closeOne.Do(func() {
+		close(m.closed)
+		_ = m.session.Close()
+	})
+}
+
+func sectionTitle(text string) *widget.Label {
+	label := widget.NewLabel(text)
+	label.TextStyle = fyne.TextStyle{Bold: true}
+	return label
+}
+
+func labelTitle(text string) *widget.Label {
+	label := widget.NewLabel(text)
+	label.TextStyle = fyne.TextStyle{Bold: true}
+	return label
+}
+
+func wrappedLabel(text string) *widget.Label {
+	label := widget.NewLabel(text)
+	label.Wrapping = fyne.TextWrapWord
+	return label
+}
