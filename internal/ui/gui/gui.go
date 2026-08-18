@@ -279,6 +279,86 @@ func Run(session *chat.Session) error {
 	return nil
 }
 
+// RunWithPassphrase shows the unlock form and then replaces it with the chat
+// view in the same Fyne application. Fyne's desktop driver owns a process-wide
+// event queue, so starting a second application after closing the unlock form
+// is not supported.
+func RunWithPassphrase(validate func([]byte) (*chat.Session, error)) error {
+	if validate == nil {
+		return fmt.Errorf("passphrase validator is required")
+	}
+
+	application := app.NewWithID(appID)
+	application.Settings().SetTheme(theme.DarkTheme())
+	window := application.NewWindow("Unlock private key")
+
+	entry := widget.NewPasswordEntry()
+	entry.SetPlaceHolder("Private key passphrase")
+	message := widget.NewLabel("Enter the passphrase for your private OpenPGP key.")
+	message.Wrapping = fyne.TextWrapWord
+	errorLabel := widget.NewLabel("")
+	errorLabel.Wrapping = fyne.TextWrapWord
+
+	closed := false
+	var runErr error
+	var chatModel *model
+	finish := func(err error) {
+		if closed {
+			return
+		}
+		closed = true
+		runErr = err
+		application.Quit()
+	}
+
+	submit := func() {
+		passphrase := []byte(entry.Text)
+		entry.SetText("")
+		session, err := validate(passphrase)
+		clearBytes(passphrase)
+		if err != nil {
+			errorLabel.SetText("Unlock failed: " + err.Error())
+			window.Canvas().Focus(entry)
+			return
+		}
+
+		chatModel = newModel(session)
+		window.SetContent(chatModel.content())
+		window.SetTitle("PGP Chat")
+		window.Resize(fyne.NewSize(windowW, windowH))
+		window.SetOnClosed(chatModel.close)
+		window.Show()
+		go chatModel.receiveEvents()
+	}
+
+	entry.OnSubmitted = func(string) { submit() }
+	unlock := widget.NewButton("Unlock", submit)
+	unlock.Importance = widget.HighImportance
+	cancel := widget.NewButton("Cancel", func() {
+		finish(fmt.Errorf("passphrase prompt cancelled"))
+	})
+
+	window.SetContent(container.NewPadded(container.NewVBox(
+		widget.NewLabelWithStyle("Unlock private key", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		message,
+		entry,
+		container.NewHBox(layout.NewSpacer(), cancel, unlock),
+		errorLabel,
+	)))
+	window.Resize(fyne.NewSize(480, 220))
+	window.SetOnClosed(func() {
+		if chatModel != nil {
+			chatModel.close()
+			return
+		}
+		finish(fmt.Errorf("passphrase prompt cancelled"))
+	})
+	window.Show()
+	window.Canvas().Focus(entry)
+	application.Run()
+	return runErr
+}
+
 type model struct {
 	session *chat.Session
 

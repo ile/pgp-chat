@@ -50,7 +50,8 @@ var listenCmd = &cobra.Command{
 	Short: "Listen for one libp2p chat connection",
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		identity, err := loadIdentity(listenFlags)
-		if err != nil {
+		interactiveGUI := listenFlags.gui && errors.Is(err, pgp.ErrPassphraseRequired)
+		if err != nil && !interactiveGUI {
 			return err
 		}
 		node, err := p2p.NewNode(p2p.Config{
@@ -71,6 +72,9 @@ var listenCmd = &cobra.Command{
 		}
 		defer conn.Close()
 		fmt.Fprintf(cmd.OutOrStdout(), "connected to libp2p peer %s\n", conn.RemotePeer())
+		if interactiveGUI {
+			return runGUIWithPassphrase(conn, listenFlags)
+		}
 		return runSession(chat.NewSession(conn, identity), listenFlags.gui)
 	},
 }
@@ -83,7 +87,8 @@ var connectCmd = &cobra.Command{
 			return fmt.Errorf("--peer is required")
 		}
 		identity, err := loadIdentity(connectFlags)
-		if err != nil {
+		interactiveGUI := connectFlags.gui && errors.Is(err, pgp.ErrPassphraseRequired)
+		if err != nil && !interactiveGUI {
 			return err
 		}
 		node, err := p2p.NewNode(p2p.Config{
@@ -103,6 +108,9 @@ var connectCmd = &cobra.Command{
 		}
 		defer conn.Close()
 		fmt.Fprintf(cmd.OutOrStdout(), "connected to libp2p peer %s\n", remotePeer)
+		if interactiveGUI {
+			return runGUIWithPassphrase(conn, connectFlags)
+		}
 		return runSession(chat.NewSession(conn, identity), connectFlags.gui)
 	},
 }
@@ -116,17 +124,16 @@ func loadIdentity(flags chatFlags) (*pgp.Identity, error) {
 	if !errors.Is(err, pgp.ErrPassphraseRequired) {
 		return identity, err
 	}
+	if flags.gui {
+		return nil, err
+	}
 
 	validate := func(passphrase []byte) error {
 		var validateErr error
 		identity, validateErr = pgp.LoadIdentityWithPassphrase(flags.privateKey, flags.peerKey, passphrase)
 		return validateErr
 	}
-	if flags.gui {
-		err = chatgui.PromptPassphrase(validate)
-	} else {
-		err = promptPassphrase(validate)
-	}
+	err = promptPassphrase(validate)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +189,11 @@ func addChatFlags(cmd *cobra.Command, flags *chatFlags) {
 func printNodeInfo(cmd *cobra.Command, node *p2p.Node, identity *pgp.Identity) {
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "libp2p PeerID: %s\n", node.ID())
-	fmt.Fprintf(out, "OpenPGP fingerprint: %s\n", pgp.Fingerprint(identity.Public))
+	if identity == nil {
+		fmt.Fprintln(out, "OpenPGP fingerprint: locked; unlock in the GUI")
+	} else {
+		fmt.Fprintf(out, "OpenPGP fingerprint: %s\n", pgp.Fingerprint(identity.Public))
+	}
 	addresses := node.Addresses()
 	if len(addresses) == 0 {
 		fmt.Fprintln(out, "libp2p addresses: none")
@@ -211,4 +222,14 @@ func runSession(session *chat.Session, useGUI bool) error {
 		return chatgui.Run(session)
 	}
 	return runTUI(session, debugEnabled)
+}
+
+func runGUIWithPassphrase(conn *p2p.Conn, flags chatFlags) error {
+	return chatgui.RunWithPassphrase(func(passphrase []byte) (*chat.Session, error) {
+		identity, err := pgp.LoadIdentityWithPassphrase(flags.privateKey, flags.peerKey, passphrase)
+		if err != nil {
+			return nil, err
+		}
+		return chat.NewSession(conn, identity), nil
+	})
 }
