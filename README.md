@@ -1,14 +1,13 @@
 # PGP Chat
 
-Terminal chat between two peers. The transport is libp2p and every chat
-message is signed with the sender's OpenPGP private key and encrypted with the
-recipient's OpenPGP public key. The libp2p connection explicitly uses the
-Noise secure transport, so the PGP payload is additionally protected by a
-forward-secret session channel.
+Chat between two peers through a simple proxy or a direct libp2p connection.
+Every message is signed with the sender's OpenPGP private key and encrypted
+with the recipient's OpenPGP public key. Direct libp2p connections also use
+the Noise secure transport.
 
-This is an MVP: peers exchange the libp2p multiaddress and OpenPGP public key
-out of band. There is no message history, contact database, DHT discovery, or
-store-and-forward service yet.
+This is an MVP: peers exchange OpenPGP public keys out of band, plus either a
+proxy address and room code or a libp2p multiaddress. There is no message
+history, contact database, DHT discovery, or store-and-forward service yet.
 
 ## Build
 
@@ -100,10 +99,52 @@ and must not be committed to the repository.
 Exchange the public keys securely. Alice needs Bob's public key as
 `alice-peer.asc`, and Bob needs Alice's public key as `bob-peer.asc`.
 
+## Chat through a proxy
+
+Run this command **on the proxy server**, meaning the machine that hosts the
+forwarding service and has a reachable TCP port. The `--listen` option tells
+that server which local address and port to bind. `0.0.0.0` means all of the
+server's network interfaces; it is not an address for chat users to connect
+to. Only the proxy server needs an open
+inbound port:
+
+```bash
+# On the proxy server
+./pgp-chat proxy --listen 0.0.0.0:4001
+```
+
+Alice and Bob each run `join` **on their own computers**. In `--server`, use
+the proxy server's reachable DNS name or IP address and port, such as
+`chat.example.org:4001`. Both users enter the same room code. Neither user
+passes `--listen` in proxy mode. Each uses their own private key and the other
+person's public key:
+
+```bash
+# On Alice's computer
+./pgp-chat join --server chat.example.org:4001 --room example-room-8f3a \
+  --private-key alice-private.asc --peer-key alice-peer.asc
+
+# On Bob's computer
+./pgp-chat join --server chat.example.org:4001 --room example-room-8f3a \
+  --private-key bob-private.asc --peer-key bob-peer.asc
+```
+
+Add `--gui` to either `join` command for the graphical chat. The first user
+waits for the second. A room accepts only two users at a time; it can be reused
+after they disconnect. Room codes must be 8–64 letters, digits, underscores or
+hyphens. Choose an unpredictable code and share it privately to reduce the
+chance of someone taking the second slot. The proxy does not need OpenPGP keys
+and forwards ciphertext without decrypting it. It can see the room code,
+connection addresses, timing, and traffic volume. Proxy TCP connections do
+not have the additional Noise channel used by direct libp2p connections;
+OpenPGP still encrypts and signs each message. Verify the peer public key
+before chatting.
+
 ## Direct connection
 
-Start Alice as the listener. Port-forward the chosen TCP port on Alice's
-router if she is behind NAT:
+This is a separate mode that does not use the `proxy` server. Start `listen`
+on Alice's computer; here its `--listen` option is a libp2p multiaddress.
+Port-forward the chosen TCP port on Alice's router if she is behind NAT:
 
 ```bash
 ./pgp-chat listen \
@@ -147,6 +188,8 @@ needed.
 ## Commands
 
 - `keygen` creates an OpenPGP key pair.
+- `proxy` hosts a two-person ciphertext forwarding service.
+- `join` connects to a proxy room and starts the TUI or GUI.
 - `listen` waits for one libp2p peer and starts the TUI.
 - `connect` dials a peer multiaddress and starts the TUI.
 - `client` starts the old standalone UI demo without a network session.

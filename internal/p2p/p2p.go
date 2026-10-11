@@ -164,6 +164,10 @@ func (c *Conn) RemotePeer() peer.ID {
 	return c.stream.Conn().RemotePeer()
 }
 
+func (c *Conn) PeerLabel() string { return c.RemotePeer().String() }
+
+func (c *Conn) TransportLabel() string { return "libp2p / Noise" }
+
 func (c *Conn) Send(payload []byte) error {
 	if len(payload) == 0 {
 		return errors.New("cannot send an empty message")

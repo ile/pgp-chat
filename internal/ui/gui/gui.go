@@ -21,7 +21,7 @@ const (
 	appID      = "io.github.ile.pgpchat"
 	windowW    = 1120
 	windowH    = 720
-	connected  = "Connected • PGP + Noise"
+	connected  = "Connected • OpenPGP"
 	disconnect = "Peer disconnected"
 )
 
@@ -259,7 +259,7 @@ func clearBytes(data []byte) {
 }
 
 // Run opens the Fyne chat window for an already established chat session.
-// The PGP and libp2p layers stay outside the GUI package.
+// The PGP and transport layers stay outside the GUI package.
 func Run(session *chat.Session) error {
 	if session == nil {
 		return fmt.Errorf("cannot start GUI without a chat session")
@@ -420,9 +420,9 @@ func (m *model) content() fyne.CanvasObject {
 		wrappedLabel(m.session.PeerFingerprint()),
 		widget.NewSeparator(),
 		labelTitle("Transport"),
-		widget.NewLabel("libp2p / Noise"),
+		widget.NewLabel(m.session.TransportLabel()),
 		widget.NewSeparator(),
-		labelTitle("Remote PeerID"),
+		labelTitle("Remote peer"),
 		wrappedLabel(m.session.RemotePeer()),
 		layout.NewSpacer(),
 		widget.NewLabel("Messages are signed and encrypted before sending."),
@@ -440,7 +440,7 @@ func (m *model) content() fyne.CanvasObject {
 		layout.NewSpacer(),
 		widget.NewSeparator(),
 		widget.NewLabel("Secure session"),
-		widget.NewLabel("Noise transport active"),
+		widget.NewLabel(m.session.TransportLabel()),
 	)
 	sidebar = container.NewPadded(sidebar)
 

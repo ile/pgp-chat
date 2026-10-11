@@ -81,7 +81,7 @@ func New(debug bool, session *chat.Session) (Client, *os.File) {
 			PublicKey{userName: "configured peer", fingerprint: session.PeerFingerprint(), active: true},
 		}
 		dataUserList = []list.Item{
-			ChatUser{userName: session.RemotePeer(), desc: "libp2p peer"},
+			ChatUser{userName: session.RemotePeer(), desc: session.TransportLabel()},
 		}
 	}
 
@@ -128,7 +128,11 @@ func New(debug bool, session *chat.Session) (Client, *os.File) {
 			Background: themeData.StatusBarLogoBackgroundColor,
 		},
 	)
-	statusbarModel.SetContent("PGP-CHAT", "READY", "libp2p", "")
+	transport := "demo"
+	if session != nil {
+		transport = session.TransportLabel()
+	}
+	statusbarModel.SetContent("PGP-CHAT", "READY", transport, "")
 
 	c.input = inputModel
 	c.username = "local user"

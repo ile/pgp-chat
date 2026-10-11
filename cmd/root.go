@@ -35,9 +35,9 @@ var debugEnabled bool
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "pgp-chat",
-	Short: "A secure peer to peer chat client and server in one.",
-	Long: `A secure peer to peer chat client and server in one. Makes use of OpenPGP to ensure 
-communications between parties is secure and verified.`,
+	Short: "An OpenPGP chat client with proxy and direct connection options.",
+	Long: `An OpenPGP chat client with proxy and direct connection options.
+Messages are encrypted and signed with OpenPGP keys.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },

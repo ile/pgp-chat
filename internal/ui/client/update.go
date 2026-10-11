@@ -75,7 +75,7 @@ func (c Client) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			c.messages = append(c.messages, "# Me\n\n"+message.text)
 			c.refreshMessages()
-			c.statusbar.SetContent("PGP-CHAT", "SENT", "libp2p", "")
+			c.statusbar.SetContent("PGP-CHAT", "SENT", c.session.TransportLabel(), "")
 		}
 	case tea.KeyMsg:
 		log.Debug("key pressed", "key", message.String())

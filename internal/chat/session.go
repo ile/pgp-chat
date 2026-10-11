@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nigel-dev/pgp-chat/internal/p2p"
 	"github.com/nigel-dev/pgp-chat/internal/pgp"
 )
 
@@ -29,7 +28,7 @@ type Event struct {
 }
 
 type Session struct {
-	conn     *p2p.Conn
+	conn     Transport
 	identity *pgp.Identity
 
 	sequenceMu sync.Mutex
@@ -38,7 +37,15 @@ type Session struct {
 	seen       map[string]struct{}
 }
 
-func NewSession(conn *p2p.Conn, identity *pgp.Identity) *Session {
+type Transport interface {
+	Send([]byte) error
+	Receive() ([]byte, error)
+	Close() error
+	PeerLabel() string
+	TransportLabel() string
+}
+
+func NewSession(conn Transport, identity *pgp.Identity) *Session {
 	return &Session{
 		conn:     conn,
 		identity: identity,
@@ -130,7 +137,11 @@ func (s *Session) LocalFingerprint() string {
 }
 
 func (s *Session) RemotePeer() string {
-	return s.conn.RemotePeer().String()
+	return s.conn.PeerLabel()
+}
+
+func (s *Session) TransportLabel() string {
+	return s.conn.TransportLabel()
 }
 
 func (s *Session) Close() error {

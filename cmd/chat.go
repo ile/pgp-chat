@@ -224,7 +224,7 @@ func runSession(session *chat.Session, useGUI bool) error {
 	return runTUI(session, debugEnabled)
 }
 
-func runGUIWithPassphrase(conn *p2p.Conn, flags chatFlags) error {
+func runGUIWithPassphrase(conn chat.Transport, flags chatFlags) error {
 	return chatgui.RunWithPassphrase(func(passphrase []byte) (*chat.Session, error) {
 		identity, err := pgp.LoadIdentityWithPassphrase(flags.privateKey, flags.peerKey, passphrase)
 		if err != nil {
